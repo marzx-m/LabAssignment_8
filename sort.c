@@ -1,121 +1,161 @@
-#include <time.h>
-#include <stdlib.h>
+/*
+Mariam Befekadu
+COP 3502C
+Lab Assignment 8
+*/
+
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-int extraMemoryAllocated;
+typedef struct {
+    char name[51];
+    int tickets;
+    int line;
+    int arrivalTime;
+} Customer;
 
-void *Alloc(size_t sz)
-{
-	extraMemoryAllocated += sz;
-	size_t* ret = malloc(sizeof(size_t) + sz);
-	*ret = sz;
-	printf("Extra memory allocated, size: %ld\n", sz);
-	return &ret[1];
+typedef struct Node {
+    Customer *customer;
+    struct Node *next;
+} Node;
+
+typedef struct {
+    Node *front;
+    Node *rear;
+    int size;
+} Queue;
+
+typedef struct {
+    Queue *queues[13];
+} Booth;
+
+Customer *createCustomer(char name[51], int tickets, int line, int arrivalTime) {
+    Customer *newCustomer = (Customer *)malloc(sizeof(Customer));
+    strcpy(newCustomer->name, name);
+    newCustomer->tickets = tickets;
+    newCustomer->line = line;
+    newCustomer->arrivalTime = arrivalTime;
+    return newCustomer;
 }
 
-void DeAlloc(void* ptr)
-{
-	size_t* pSz = (size_t*)ptr - 1;
-	extraMemoryAllocated -= *pSz;
-	printf("Extra memory deallocated, size: %ld\n", *pSz);
-	free((size_t*)ptr - 1);
+Queue *createQueue() {
+    Queue *queue = (Queue *)malloc(sizeof(Queue));
+    queue->front = NULL;
+    queue->rear = NULL;
+    queue->size = 0;
+    return queue;
 }
 
-size_t Size(void* ptr)
-{
-	return ((size_t*)ptr)[-1];
+void enqueue(Queue *queue, Customer *customer) {
+    Node *newNode = (Node *)malloc(sizeof(Node));
+    newNode->customer = customer;
+    newNode->next = NULL;
+
+    if (queue->rear == NULL) {
+        queue->front = newNode;
+        queue->rear = newNode;
+    } else {
+        queue->rear->next = newNode;
+        queue->rear = newNode;
+    }
+
+    queue->size++;
 }
 
-// implement merge sort
-// extraMemoryAllocated counts bytes of extra memory allocated
-void mergeSort(int pData[], int l, int r)
-{
+Customer *dequeue(Queue *queue) {
+    if (queue->front == NULL) {
+        return NULL; 
+    }
+
+    Node *temp = queue->front;
+    Customer *customer = temp->customer;
+
+    queue->front = temp->next;
+    if (queue->front == NULL) {
+        queue->rear = NULL;
+    }
+
+    free(temp);
+    queue->size--;
+
+    return customer;
 }
 
-// parses input file to an integer array
-int parseData(char *inputFileName, int **ppData)
-{
-	FILE* inFile = fopen(inputFileName,"r");
-	int dataSz = 0;
-	int i, n, *data;
-	*ppData = NULL;
-	
-	if (inFile)
-	{
-		fscanf(inFile,"%d\n",&dataSz);
-		*ppData = (int *)malloc(sizeof(int) * dataSz);
-		// Implement parse data block
-		if (*ppData == NULL)
-		{
-			printf("Cannot allocate memory\n");
-			exit(-1);
-		}
-		for (i=0;i<dataSz;++i)
-		{
-			fscanf(inFile, "%d ",&n);
-			data = *ppData + i;
-			*data = n;
-		}
+Customer *peek(Queue *queue) {
+    if (queue->front == NULL) {
+        return NULL; 
+    }
 
-		fclose(inFile);
-	}
-	
-	return dataSz;
+    return queue->front->customer;
 }
 
-// prints first and last 100 items in the data array
-void printArray(int pData[], int dataSz)
-{
-	int i, sz = dataSz - 100;
-	printf("\tData:\n\t");
-	for (i=0;i<100;++i)
-	{
-		printf("%d ",pData[i]);
-	}
-	printf("\n\t");
-	
-	for (i=sz;i<dataSz;++i)
-	{
-		printf("%d ",pData[i]);
-	}
-	printf("\n\n");
+int isEmpty(Queue *queue) {
+    return queue->front == NULL;
 }
 
-int main(void)
-{
-	clock_t start, end;
-	int i;
-    double cpu_time_used;
-	char* fileNames[] = { "input1.txt", "input2.txt", "input3.txt", "input4.txt" };
-	
-	for (i=0;i<4;++i)
-	{
-		int *pDataSrc, *pDataCopy;
-		int dataSz = parseData(fileNames[i], &pDataSrc);
-		
-		if (dataSz <= 0)
-			continue;
-		
-		pDataCopy = (int *)malloc(sizeof(int)*dataSz);
-	
-		printf("---------------------------\n");
-		printf("Dataset Size : %d\n",dataSz);
-		printf("---------------------------\n");
-		
-		printf("Merge Sort:\n");
-		memcpy(pDataCopy, pDataSrc, dataSz*sizeof(int));
-		extraMemoryAllocated = 0;
-		start = clock();
-		mergeSort(pDataCopy, 0, dataSz - 1);
-		end = clock();
-		cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
-		printf("\truntime\t\t\t: %.1lf\n",cpu_time_used);
-		printf("\textra memory allocated\t: %d\n",extraMemoryAllocated);
-		printArray(pDataCopy, dataSz);
-		
-		free(pDataCopy);
-		free(pDataSrc);
-	}
-	
+int getSize(Queue *queue) {
+    return queue->size;
+}
+
+void initializeBooths(Booth *booths) {
+    for (int i = 1; i <= 12; i++) {
+        booths->queues[i] = createQueue();
+    }
+}
+
+void freeBooths(Booth *booths) {
+    for (int i = 1; i <= 12; i++) {
+        free(booths->queues[i]);
+    }
+}
+
+int main() {
+    int n, b;
+    scanf("%d %d", &n, &b);
+
+    Booth booths;
+    initializeBooths(&booths);
+
+    for (int i = 0; i < n; i++) {
+        char name[51];
+        int tickets, time;
+        scanf("%s %d %d", name, &tickets, &time);
+
+        int p = name[0] - 'A';
+        int queueNumber = (p % 13 != 0) ? (p % 13) : 12;
+
+        enqueue(booths.queues[queueNumber], createCustomer(name, tickets, queueNumber, time));
+    }
+
+        for (int i = 1; i <= b; i++) {
+          printf("Booth %d\n", i);
+
+          int totalQueues = 12 / b;
+          int extraQueues = 12 % b;
+          int assignedQueues = (i <= extraQueues) ? (totalQueues + 1) : totalQueues;
+
+          int startQueue = (i - 1) * totalQueues + (i <= extraQueues ? i : extraQueues) + 1;
+
+          for (int j = startQueue; j < startQueue + assignedQueues; j++) {
+          Queue *currentQueue = booths.queues[j];
+
+          while (!isEmpty(currentQueue)) {
+              Customer *customer = dequeue(currentQueue);
+
+              int processingTime = 30 + customer->tickets * 5;
+              int checkoutTime = customer->arrivalTime + processingTime;
+
+              printf("%s from line %d checks out at time %d.\n", customer->name,
+                     customer->line, checkoutTime);
+              free(customer); 
+          }
+      }
+
+      printf("\n");
+  }
+
+    freeBooths(&booths);
+
+    return 0;
 }
